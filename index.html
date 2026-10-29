@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0">
+<title>杰哥看盘</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f5f6f8;--card:#fff;--text:#1a1a1a;--text2:#555;--accent:#c0392b;--border:#e3e5e8;--topbar:#1f2937;--anno:#f59e0b;--search:#2563eb;--edit:#10b981}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.85;font-size:16px;-webkit-font-smoothing:antialiased}
+.topbar{position:sticky;top:0;z-index:100;background:var(--topbar);color:#fff;display:flex;align-items:center;gap:6px;padding:9px 12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.topbar .title{font-size:16px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar button{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap}
+.topbar button:active{background:rgba(255,255,255,.3)}
+.topbar .badge{background:var(--anno);color:#fff;border-radius:10px;font-size:10px;padding:1px 5px;margin-left:3px}
+.topbar button.active{background:var(--edit);border-color:var(--edit)}
+/* 搜索栏 */
+.search-bar{display:none;background:#fff;border-bottom:1px solid var(--border);padding:8px 12px;align-items:center;gap:8px;position:sticky;top:48px;z-index:99;box-shadow:0 2px 4px rgba(0,0,0,.06)}
+.search-bar.open{display:flex}
+.search-bar input{flex:1;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:14px;font-family:inherit;min-width:0;color:var(--text);background:#fff}
+.search-bar input:focus{outline:none;border-color:var(--search)}
+/* 搜索下拉框 */
+.search-dropdown{position:absolute;top:100%;left:12px;right:12px;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;z-index:100;display:none;margin-top:4px}
+.search-dropdown.show{display:block}
+.search-dropdown-item{padding:8px 12px;font-size:13px;color:var(--text);cursor:pointer;border-bottom:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-dropdown-item:hover{background:var(--bg)}
+.search-dropdown-item:active{background:#e8e9eb}
+.search-bar .s-btn{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;color:var(--text2);white-space:nowrap}
+.search-bar .s-btn:active{background:#e8e9eb}
+.search-bar .s-count{font-size:12px;color:#999;white-space:nowrap;min-width:50px;text-align:center}
+/* 面板 */
+.panel{position:fixed;top:0;right:-360px;width:340px;max-width:88vw;height:100vh;background:var(--card);z-index:200;box-shadow:-4px 0 24px rgba(0,0,0,.18);overflow-y:auto;transition:right .25s ease;padding:14px}
+.panel.open{right:0}
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:150;display:none}
+.mask.show{display:block}
+.panel-close{position:absolute;top:8px;right:10px;font-size:22px;color:#999;cursor:pointer;background:none;border:none}
+.panel h4{font-size:15px;color:var(--text2);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+/* 目录 */
+.toc-node{display:flex;align-items:center;gap:4px}
+.toc-node .toc-toggle{display:inline-block;width:20px;text-align:center;cursor:pointer;color:#999;font-size:11px;flex-shrink:0;user-select:none}
+.toc-node .toc-link{display:block;flex:1;color:var(--text);text-decoration:none;padding:7px 6px;border-radius:5px;font-size:14px;border-left:3px solid transparent}
+.toc-node .toc-link:active{background:var(--bg)}
+.toc-node.toc-h1 .toc-link{font-weight:600}
+.toc-node.toc-h2 .toc-link{padding-left:20px;color:var(--text2)}
+.toc-node.toc-h3 .toc-link{padding-left:34px;font-size:13px;color:#888}
+.toc-children{margin-left:12px}
+.toc-children.collapsed{display:none}
+.toc-node .toc-link.active{border-left-color:var(--accent);background:#fef2f2;color:var(--accent);font-weight:600}
+/* 批注列表 */
+.anno-list-item{padding:10px;border-bottom:1px solid var(--border);cursor:pointer}
+.anno-list-item:active{background:var(--bg)}
+.anno-list-item .anno-text{font-size:12px;color:#888;margin-bottom:4px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anno-list-item .anno-note{font-size:13px;color:var(--text);margin-bottom:4px;word-break:break-all}
+.anno-list-item .anno-note img{max-width:100%;border-radius:4px;margin:4px 0}
+.anno-list-item .anno-meta{font-size:11px;color:#aaa}
+.anno-empty{text-align:center;color:#999;font-size:13px;padding:30px 10px}
+.anno-del{float:right;color:#c0392b;font-size:12px;cursor:pointer}
+/* 批注高亮 */
+.annotated{background:#fff3a0;box-shadow:0 0 0 1px #e8d80055;border-radius:2px;cursor:pointer}
+.anno-ref{color:var(--anno);cursor:pointer;font-size:11px;margin-left:2px;user-select:none}
+/* 批注浮动工具栏 */
+.anno-toolbar{position:fixed;z-index:300;background:#333;color:#fff;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none;user-select:none}
+/* 批注富文本编辑器 */
+.anno-editor{position:fixed;z-index:300;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.2);display:none;width:340px;max-width:92vw}
+.anno-editor .ed-toolbar{display:flex;flex-wrap:wrap;gap:2px;padding:6px;border-bottom:1px solid var(--border);background:#fafafa;border-radius:8px 8px 0 0}
+.anno-editor .ed-btn{background:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;cursor:pointer;color:var(--text);min-width:28px;text-align:center}
+.anno-editor .ed-btn:active{background:#e8e9eb}
+.anno-editor .ed-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.anno-editor .ed-color{width:24px;height:24px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer}
+.anno-editor .ed-area{padding:10px;min-height:100px;max-height:200px;overflow-y:auto;font-size:14px;line-height:1.7;outline:none;-webkit-user-select:text;user-select:text;word-break:break-all}
+.anno-editor .ed-area:empty:before{content:"输入批注文字，可插入图片...";color:#bbb}
+.anno-editor .ed-area img{max-width:100%;border-radius:4px;margin:4px 0;display:block}
+.anno-editor .ed-actions{padding:8px 10px;border-top:1px solid var(--border);text-align:right}
+.anno-editor .ed-actions button{padding:5px 14px;border-radius:4px;font-size:13px;cursor:pointer;margin-left:6px}
+.anno-editor .btn-save{background:var(--accent);color:#fff;border:none}
+.anno-editor .btn-cancel{background:var(--bg);border:1px solid var(--border);color:var(--text2)}
+.anno-editor .ed-file{display:none}
+/* 批注气泡 */
+.anno-popup{position:fixed;z-index:300;background:#fffbeb;border:1px solid var(--anno);border-radius:8px;padding:10px 12px;box-shadow:0 4px 16px rgba(0,0,0,.2);max-width:300px;font-size:13px;display:none;max-height:300px;overflow-y:auto}
+.anno-popup .ap-text{color:#888;font-size:12px;margin-bottom:4px;font-style:italic}
+.anno-popup .ap-note{color:var(--text);word-break:break-all}
+.anno-popup .ap-note img{max-width:100%;border-radius:4px;margin:4px 0}
+.anno-popup .ap-meta{color:#aaa;font-size:11px;margin-top:6px}
+.anno-popup .ap-close{position:absolute;top:4px;right:6px;cursor:pointer;color:#999}
+/* 搜索高亮 */
+mark.search-mark{background:#ffd54f;color:inherit;border-radius:2px;padding:0 1px}
+mark.search-mark.current{background:#ff6f00;color:#fff}
+/* 主体 */
+.container{max-width:820px;margin:0 auto;padding:16px 14px 60px}
+.content{background:var(--card);border-radius:10px;padding:24px 22px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.content p{margin:13px 0;text-align:justify}
+.content h1{font-size:22px;font-weight:700;margin:28px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--accent);color:var(--accent);line-height:1.4;scroll-margin-top:100px}
+.content h2{font-size:19px;font-weight:700;margin:22px 0 10px;color:#222;line-height:1.4;scroll-margin-top:100px}
+.content h3{font-size:17px;font-weight:600;margin:18px 0 8px;color:#333;line-height:1.4;scroll-margin-top:100px}
+.content img{max-width:100%;height:auto;border-radius:6px;margin:10px auto;display:block;box-shadow:0 1px 4px rgba(0,0,0,.12);min-height:40px}
+.content ul,.content ol{margin:10px 0 10px 22px}
+.content li{margin:5px 0}
+.content ul li{list-style:disc}.content ol li{list-style:decimal}
+.content strong{font-weight:700;color:#111}
+.content a{color:var(--accent);text-decoration:none}
+/* 编辑模式 */
+.content.editing{outline:2px dashed var(--edit);outline-offset:4px}
+.content.editing [contenteditable="true"]{outline:1px dotted #ccc;min-height:1.5em}
+.content.editing [contenteditable="true"]:focus{outline:2px solid var(--edit);background:#f0fdf4}
+.edit-toolbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 12px;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:300;display:none;gap:6px;flex-wrap:wrap;justify-content:center}
+.edit-toolbar.show{display:flex}
+.edit-toolbar .ed-btn{background:#fff;border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:13px;cursor:pointer;color:var(--text);min-width:32px;text-align:center}
+.edit-toolbar .ed-btn:active{background:#e8e9eb}
+.edit-toolbar .ed-btn.active{background:var(--edit);color:#fff;border-color:var(--edit)}
+@media(max-width:600px){
+ body{font-size:15px}
+ .container{padding:8px 6px 40px}
+ .content{padding:14px 12px;border-radius:8px}
+ .content h1{font-size:19px}.content h2{font-size:17px}.content h3{font-size:15px}
+ .topbar .title{font-size:14px}
+ .topbar button{padding:5px 8px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+ <span class="title">杰哥看盘</span>
+ <button onclick="toggleSearch()">搜索</button>
+ <button onclick="openPanel('toc')">目录</button>
+ <button onclick="openPanel('anno')">批注<span class="badge" id="annoBadge">0</span></button>
+ <button onclick="toggleEditMode()" id="editBtn">编辑</button>
+</div>
+<div class="search-bar" id="searchBar" style="position:relative">
+ <input type="search" id="searchInput" placeholder="搜索正文内容..." oninput="doSearch(this.value)" autocomplete="off">
+ <div class="search-dropdown" id="searchDropdown"></div>
+ <span class="s-count" id="searchCount">0/0</span>
+ <button class="s-btn" onclick="navMatch(-1)">&#9650;</button>
+ <button class="s-btn" onclick="navMatch(1)">&#9660;</button>
+ <button class="s-btn" onclick="clearSearch()">&#10005;</button>
+</div>
+<div class="mask" id="mask" onclick="closePanels()"></div>
+<aside class="panel" id="panelToc">
+ <button class="panel-close" onclick="closePanels()">&times;</button>
+ <h4>目录导航 <span style="font-size:11px;color:#aaa;font-weight:400">（点击&#9654;展开）</span></h4>
+ <div id="tocTree"><div class="toc-node toc-h1" data-target="h1-1"><span class="toc-toggle" onclick="toggleTocItem(this)"></span><a href="#h1-1" class="toc-link">一、H1 1</a></div>
+<div class="toc-node toc-h1" data-target="h1-2"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-2" class="toc-link">二、板块节奏点</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-1"><a href="#h2-1" class="toc-link">1.异动和启动</a></div>
+<div class="toc-node toc-h2" data-target="h2-2"><a href="#h2-2" class="toc-link">2.爆发</a></div>
+<div class="toc-node toc-h2" data-target="h2-3"><a href="#h2-3" class="toc-link">3.分歧</a></div>
+<div class="toc-node toc-h3" data-target="h3-1"><a href="#h3-1" class="toc-link">1）核心中军低吸</a></div>
+<div class="toc-node toc-h3" data-target="h3-2"><a href="#h3-2" class="toc-link">2）分歧日分分时抗跌的：</a></div>
+<div class="toc-node toc-h3" data-target="h3-3"><a href="#h3-3" class="toc-link">3）回踩五日线：</a></div>
+<div class="toc-node toc-h2" data-target="h2-4"><a href="#h2-4" class="toc-link">4.回流</a></div>
+<div class="toc-node toc-h2" data-target="h2-5"><a href="#h2-5" class="toc-link">5.震荡或超跌</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-3"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-3" class="toc-link">三、打板战法</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-6"><a href="#h2-6" class="toc-link">1.为什么打板​</a></div>
+<div class="toc-node toc-h2" data-target="h2-7"><a href="#h2-7" class="toc-link">2.机构板</a></div>
+<div class="toc-node toc-h2" data-target="h2-8"><a href="#h2-8" class="toc-link">3.游资板</a></div>
+<div class="toc-node toc-h3" data-target="h3-4"><a href="#h3-4" class="toc-link">1）影响市场合力因素</a></div>
+<div class="toc-node toc-h2" data-target="h2-9"><a href="#h2-9" class="toc-link">4.妖股补涨法</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-4"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-4" class="toc-link">四、支撑位大全</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-10"><a href="#h2-10" class="toc-link">1.理论</a></div>
+<div class="toc-node toc-h3" data-target="h3-5"><a href="#h3-5" class="toc-link">1）前提</a></div>
+<div class="toc-node toc-h3" data-target="h3-6"><a href="#h3-6" class="toc-link">2）有效突破和跌破的确认</a></div>
+<div class="toc-node toc-h3" data-target="h3-7"><a href="#h3-7" class="toc-link">3）如何应用支撑</a></div>
+<div class="toc-node toc-h3" data-target="h3-8"><a href="#h3-8" class="toc-link">4）假突破和假跌破</a></div>
+<div class="toc-node toc-h2" data-target="h2-11"><a href="#h2-11" class="toc-link">2.支撑位分类</a></div>
+<div class="toc-node toc-h3" data-target="h3-9"><a href="#h3-9" class="toc-link">1）水平支撑位</a></div>
+<div class="toc-node toc-h3" data-target="h3-10"><a href="#h3-10" class="toc-link">2）趋势线支撑</a></div>
+<div class="toc-node toc-h3" data-target="h3-11"><a href="#h3-11" class="toc-link">3）移动平均线支撑</a></div>
+<div class="toc-node toc-h3" data-target="h3-12"><a href="#h3-12" class="toc-link">4）标志性K线</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-5"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-5" class="toc-link">五、20cm套利</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-12"><a href="#h2-12" class="toc-link">1.盯盘</a></div>
+<div class="toc-node toc-h2" data-target="h2-13"><a href="#h2-13" class="toc-link">2.前提</a></div>
+<div class="toc-node toc-h2" data-target="h2-14"><a href="#h2-14" class="toc-link">3.20cm分歧二板</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-6"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-6" class="toc-link">六、二次分时放量买点</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-15"><a href="#h2-15" class="toc-link">1.定义</a></div>
+<div class="toc-node toc-h2" data-target="h2-16"><a href="#h2-16" class="toc-link">2.如何提高成功率</a></div>
+<div class="toc-node toc-h2" data-target="h2-17"><a href="#h2-17" class="toc-link">3.如何提高日内大涨概率</a></div>
+<div class="toc-node toc-h3" data-target="h3-13"><a href="#h3-13" class="toc-link">1）容易大涨的位置和形态</a></div>
+<div class="toc-node toc-h2" data-target="h2-18"><a href="#h2-18" class="toc-link">4.总结</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-7"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-7" class="toc-link">七、三大卖点</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-19"><a href="#h2-19" class="toc-link">1.第一类：围绕五日线</a></div>
+<div class="toc-node toc-h2" data-target="h2-20"><a href="#h2-20" class="toc-link">2.第二类：围绕箱体下沿</a></div>
+<div class="toc-node toc-h2" data-target="h2-21"><a href="#h2-21" class="toc-link">3.第三类：反弹站不上箱体下沿或碰一下又跌</a></div>
+<div class="toc-node toc-h2" data-target="h2-22"><a href="#h2-22" class="toc-link">4.小白补充必看！</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-8"><span class="toc-toggle" onclick="toggleTocItem(this)"></span><a href="#h1-8" class="toc-link">八、一字板回流</a></div>
+<div class="toc-node toc-h1" data-target="h1-9"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-9" class="toc-link">九、龙回头</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-23"><a href="#h2-23" class="toc-link">1.第一种</a></div>
+<div class="toc-node toc-h2" data-target="h2-24"><a href="#h2-24" class="toc-link">2.第二种</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-10"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-10" class="toc-link">十、买卖点依据</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-25"><a href="#h2-25" class="toc-link">1.卖点依据</a></div>
+<div class="toc-node toc-h2" data-target="h2-26"><a href="#h2-26" class="toc-link">2.买点依据</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-11"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-11" class="toc-link">十一、强为弱之纲</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-27"><a href="#h2-27" class="toc-link">1.原理</a></div>
+<div class="toc-node toc-h2" data-target="h2-28"><a href="#h2-28" class="toc-link">2.介入方式</a></div>
+<div class="toc-node toc-h2" data-target="h2-29"><a href="#h2-29" class="toc-link">3.总结</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-12"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-12" class="toc-link">十二、筹码错位</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-30"><a href="#h2-30" class="toc-link">1.原理</a></div>
+</div>
+<div class="toc-node toc-h1" data-target="h1-13"><span class="toc-toggle" onclick="toggleTocItem(this)">&#9654;</span><a href="#h1-13" class="toc-link">十三、套利买点之大涨日低吸人气股</a></div>
+<div class="toc-children collapsed">
+<div class="toc-node toc-h2" data-target="h2-31"><a href="#h2-31" class="toc-link">1.原理逻辑</a></div>
+<div class="toc-node toc-h2" data-target="h2-32"><a href="#h2-32" class="toc-link">2.条件</a></div>
+<div class="toc-node toc-h2" data-target="h2-33"><a href="#h2-33" class="toc-link">3.步骤</a></div>
+<div class="toc-node toc-h2" data-target="h2-34"><a href="#h2-34" class="toc-link">4.优缺点、难点</a></div>
+</div></div>
+</aside>
+<aside class="panel" id="panelAnno">
+ <button class="panel-close" onclick="closePanels()">&times;</button>
+ <h4>我的批注 <span id="annoCount" style="font-weight:400;color:#aaa;font-size:12px"></span></h4>
+ <div id="annoList"></div>
+</aside>
+<div class="anno-toolbar" id="annoToolbar" onclick="openAnnoEditor()">添加批注</div>
+<div class="anno-editor" id="annoEditor">
+ <div class="ed-toolbar">
+  <button class="ed-btn" onclick="edCmd('bold')" style="font-weight:700">B</button>
+  <button class="ed-btn" onclick="edCmd('italic')" style="font-style:italic">I</button>
+  <button class="ed-btn" onclick="edCmd('underline')" style="text-decoration:underline">U</button>
+  <button class="ed-btn" onclick="edCmd('strikeThrough')" style="text-decoration:line-through">S</button>
+  <input type="color" class="ed-color" title="文字颜色" onchange="edColor(this.value)" value="#c0392b">
+  <button class="ed-btn" onclick="toggleFormatBrush()" id="brushBtn" title="格式刷">&#1f4d0;</button>
+  <button class="ed-btn" onclick="document.getElementById('edFile').click()" title="插入图片">&#128247;</button>
+  <input type="file" id="edFile" class="ed-file" accept="image/*" capture="environment" onchange="insertImg(this)">
+ </div>
+ <div class="ed-area" id="edArea" contenteditable="true"></div>
+ <div class="ed-actions">
+  <button class="btn-cancel" onclick="cancelAnno()">取消</button>
+  <button class="btn-save" onclick="confirmAnno()">保存</button>
+ </div>
+</div>
+<div class="anno-popup" id="annoPopup"></div>
+<div class="edit-toolbar" id="editToolbar">
+ <button class="ed-btn" onclick="editCmd('bold')" style="font-weight:700">B</button>
+ <button class="ed-btn" onclick="editCmd('italic')" style="font-style:italic">I</button>
+ <button class="ed-btn" onclick="editCmd('underline')" style="text-decoration:underline">U</button>
+ <button class="ed-btn" onclick="editCmd('strikeThrough')" style="text-decoration:line-through">S</button>
+ <input type="color" class="ed-color" title="文字颜色" onchange="editColor(this.value)" value="#c0392b" style="width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer">
+ <button class="ed-btn" onclick="toggleEditFormatBrush()" id="editBrushBtn" title="格式刷">刷</button>
+ <button class="ed-btn" onclick="saveEdit()" style="background:var(--edit);color:#fff;border-color:var(--edit)">保存</button>
+ <button class="ed-btn" onclick="cancelEdit()">取消</button>
+</div>
+<main class="container">
+ <article class="content" id="content"><p>横盘后，某天竞价跳着高开急拉一波，第二天开盘下杀一波又拉起来，并没有走坏，并横盘缩量调整洗盘，应该会有一波趋势，待验证。。。</p><h1 id="h1-1"><img src="images/img-001.png" loading="lazy" alt="图1" decoding="async"><br /></h1><h1 id="h1-2">板块节奏点</h1><h2 id="h2-1">异动和启动</h2><p>板块内有大涨的个股，有涨停的，但数量不多少于五只一般，板块指数一般呈现小阳线。或者一个震荡区间没反复的活跃，连续上影线，但是没有大涨过。</p><p>对于趋势版块，主要就是板块开始止跌，出现了1-2只新高个股。如果新高个股继续新高大涨，板块可能继续转强爆发。这个阶段适合打龙头的换手板或者半路，博弈加速。</p><p>注意这个的阶段的要求一定是板块或者个股有一定的常规低位。</p><h2 id="h2-2">爆发</h2><p>板块连续异动后，可能有一次大涨，特点是多加涨停或者有明显的大票涨停。</p><p><strong>共振：如果配合指数的第一根或者第二根大阳线，爆发的持续性会加强，也就是板块和指数的反弹共振。</strong></p><p>日内爆发板块三种常见定方向方法：</p><ul><li>一字板定方向</li><li>弱转强定方向</li><li>大票加速定方向</li></ul><p>（1）当日换手弱转强</p><p><img src="images/img-002.jpg" loading="lazy" alt="图2" decoding="async">     <img src="images/img-003.jpg" loading="lazy" alt="图3" decoding="async"></p><p>（2）当日炸板，第二天高开弱转强反包</p><p><img src="images/img-004.png" loading="lazy" alt="图4" decoding="async"></p><p><img src="images/img-005.png" loading="lazy" alt="图5" decoding="async"></p><p>（3）一字板定方向：相当于弱转强pro版本，只不过更强势</p><p>（4）大票定方向：开盘高开高走，日内板块爆发。不同的板块核心个股不一样，有的是连板定方向，有的是大票定方向。</p><p>这一阶段做的主要是<strong>龙头的弱转强打板，或者首板的套利，或者板块内涨幅较小的个股等补涨。尽量不要去追日内大涨、偏离均线较远的后排个股</strong>。</p><p>这一阶段，<strong>龙头弱转强，但是板块如果没爆发，个股可能炸板。这种买法，在指数反弹的第一个或者第二个阳线会更好，后面要小心</strong>。</p><p><img src="images/img-006.png" loading="lazy" alt="图6" decoding="async"></p><p><img src="images/img-007.png" loading="lazy" alt="图7" decoding="async"></p><h2 id="h2-3">分歧</h2><p>主要就是板块指数高位震荡或者冲高回落。如果板块爆发后，指数放量大跌甚至板块跌停，这种分歧较大，要回避，第二天可能继续补跌。</p><p>如果要正常震荡，可以博弈回流，<strong>主要就是找强辨识度的个股：最强的核心连板票。找高度最高，换手最好的</strong>。如果换手强了，一字板可能走弱。如果一字板强了，换手反而可以套利。</p><p>低吸可以保下限，分歧日买，次日如果有行情，就大肉；没有行情，小亏小赚也算是活着出来。但是想要有行情就要市场的配合。</p><p>如果分歧日冲高卖出套利，后面回落了，但是尾盘又拉升更高，这种不要担心卖飞，每次分歧日冲高的场景卖掉，然后如果选择的是核心个股等回落了再低吸回来，博弈明天的回流，相当于做了个t。<strong>每次分歧博弈回流都可以看作是单独额独立的战法体系。</strong></p><h3 id="h3-1">核心中军低吸</h3><p><img src="images/img-008.png" loading="lazy" alt="图8" decoding="async"></p><h3 id="h3-2">分歧日分分时抗跌的：</h3><p><img src="images/img-009.png" loading="lazy" alt="图9" decoding="async"></p><p>分歧日创业板活口和抗跌分时：（难点在于如果指数持续回调，逆指数的分时也补跌）</p><p><img src="images/img-010.png" loading="lazy" alt="图10" decoding="async"></p><h3 id="h3-3">回踩五日线：</h3><p><strong>对大部分人来说，找中军或者回踩五日线，形态股性好的更稳妥，确定性较高。高位连板适合高风偏和高承受力的。</strong></p><p><img src="images/img-011.png" loading="lazy" alt="图11" decoding="async"></p><h2 id="h2-4">回流</h2><p>分歧后的回流，强回流会再次爆发，弱回流会冲高回落和炸板。<strong>原则上回流日不开新仓</strong>，<strong>除非指数强。</strong></p><p>题材属性好，大题材更容易二次爆发，对于大部分后排个股，如果回流不能新高，都是卖点！回流的比较强势，就按照二次爆发处理，后面还可以继续买分歧。<strong>龙头个股的二次分歧低吸一般可以全身而退。</strong></p><p><strong>小周期冰点，去买阶段涨幅（10日涨幅或者20日涨幅最高的趋势个股，等回踩到5日10日线去低吸，但是快进快出！！！，否则可能大亏）</strong></p><h2 id="h2-5">震荡或超跌</h2><p>弱回流后，调整幅度变大，买大阴线调整后。<strong>一般第一根大阴线后不买，买第一根后面的第二根后或者三根后或者十字星</strong>。<strong>配合龙头股走势，如果龙头股出现补跌，这个买点确定性会更高</strong>：舒泰神前期龙头</p><p><img src="images/img-012.png" loading="lazy" alt="图12" decoding="async"></p><p>调整时间变长的情况下，可能要横盘4~5天后低吸，博弈轮动或者二波。<strong>在突破后的第一根阳线做追涨，也就是6这个位置。</strong><br /><img src="images/img-013.png" loading="lazy" alt="图13" decoding="async"></p><p><strong>难点在于：如果指数次日下跌，可能板块即使走出二波图形也容易补跌</strong>。所以同时还要观察指数的赚钱效应，指数有风险后一定是<strong>试错仓位轻仓或放弃</strong>。如果是指数补跌后或者指数反弹后板块出现此种形态，则该第一根阳线更容易持续。</p><p><img src="images/img-014.png" loading="lazy" alt="图14" decoding="async"></p><p>相对来讲，如果之前低吸有底仓成本更低，或者是买入后，次日开盘走弱，要卖的果断些敏感一些。</p><h1 id="h1-3">打板战法</h1><h2 id="h2-6">为什么打板​</h2><p>转折点打板是分仓卡节点，在情绪可能发生转折时候出现的涨停、连板，一般溢价都很高，也会有高性价比高赚钱效应的个股。比如9月5日、9月6日的连板。这点有些切合金田哥的理念，他喜欢打板和接力，是因为这是最容易参与到主升浪的方式。本质上也是为了性价比。</p><p>分仓做每一个方向率先出现的二板，主要是为了板块给的溢价，能够做到爆发的方向，之后去弱留强，参与主升浪。这个和卡节点很像，但有时候卡节点可能要做高位股。</p><p>这两种分仓模式，本质上还是分别押注，然后靠盈利的抵消亏损的，这种情况下，如果好的没做到，坏的可以放弃。因为如果没有一起做，第一选择没做到，第二选择亏钱的概率就会非常大。做强势股模式，很怕退而求其次。</p><p>对于5、6板的高位接力，如果不看好后面有几个板，那就不要去做。怎么衡量这个性价比，其实就是看情绪周期、指数形态、板块强度。</p><ul><li><strong>寻找共性、重复交易。</strong></li></ul><p>记住自己赚钱的感觉，然后重复下去，形成正反馈。想清楚自己为什么打板，是为了隔日的溢价，还是为了博弈板块爆发，个股主升。</p><ul><li><strong>成功率和性价比，靠哪个盈利。</strong></li></ul><p>不要看着板就打，为了打板而打板，是打板里的大忌。</p><h2 id="h2-7">机构板</h2><p>一般来讲，机构席位上了龙虎榜，第二天都会冲高 。</p><p>机构偏好基本面好的，有业绩有景气度，有政策预期的行业大票，可以通过十大流通股东数量、机构调研频率、研报数量来看一个个股是否是机构偏好；</p><p><strong>机构涨停板特点：</strong></p><ol><li>在分时走势上面，体现在个股不会直接一次性干到板上，分时不会像游资票那么陡峭，笔直拉升，而是涨一点、跌一点，缓慢拉升，涨停后不追求封单，打开也正常；</li><li>涨停时间：除了重大利好，机构票很少有早盘涨停的。下午和尾盘涨停最为常见。早盘涨停后，盘中很容易打开；</li><li>日线结构：机构票很少有连续三板以上的。往往都是大涨后，等调整，然后再上涨（成本会更低，拉起来后自有资金接力）。机构的买入往往是具有持续性的；</li><li>对机构票，可以当成一个选股的参考，然后结合指数趋势、个股技术、板块进行操作，做波段。</li></ol><p><strong>机构票打板：</strong></p><p>把机构票底部涨停作为一种信号，当成一个选股的参考，然后结合指数趋、个股技术、板块进行操作，做波段。</p><h2 id="h2-8">游资板</h2><p>游资板是游资推动的击鼓传花游戏。持续拉升过程中，必须有足够的换手，不断抬高市场平均成本，大家成本才接近，才能继续下去。如果持续缩量，底部锁仓的人过多会形成潜在抛压，必须通过放量来将筹码重新洗牌一下，游戏才能继续下去。</p><p>妖股的交易过程中，很少从头拿到尾，捕捉到其中一段就很知足了。</p><h3 id="h3-4">影响市场合力因素</h3><ol><li>市场整体量能：弱势市场可能量能不足，接盘的人少导致上不去；</li><li>市场指数与情绪周期：大规模资金更关注宏观经济和指数形态，求稳建仓；</li><li>短线活跃资金量（涨停股总额）：把每天涨停个股的成交额加起来基本就是还在投入到交易中的短线资金了。如果赚钱效应好，这个资金规模变大，反之缩小。如果短线要有持续性，涨停股总额一般要在500、600亿以上。中通客车、大港股份的时候都是这样，最少一般是500多亿，高了可以超过800，甚至1000。而9月份，除了9月7日相对高一点，接近500亿后，其他大部分的交易日涨停股总金额都在300亿以下。</li></ol><p>这也侧面说明一个道理，市场不怕没题材，就怕题材多：</p><p>如果只有200亿成交额，主攻一个方向，那么一个方向可以炒作一段时间。如果200亿成交额攻击多个方向，那基本大家一起玩完。</p><p><strong>板块涨停股成交额作为是否能够板块能否回流的一个标准</strong>：</p><p>国光电器、歌尔股份之所以敢于重仓博弈回流，就是因为消费电子板块的涨停股成交额足够大，资金足够活跃。但是后来的钠离子、消费酒，虽然涨停多，但成交额不大，并不完全满足回流的标准。<strong>在满足条件的情况下，成功率高，可以多买点。不满足条件，可能成，但也可能失败，仓位就要低点，成了就拿，错了就止损。</strong></p><ol><li>赚钱效应：观察大盘涨跌数</li><li>监管：监管不是市场差的主因，但是弱势环境时，监管会进一步恶化市场环境。</li></ol><p>与机构票区别：</p><p>游资票以小票、概念炒作为主，会关注业绩，但没有业绩的垃圾股也会炒作。分时拉升比较犀利，一般都是1、2笔拉升，就到了涨停，很陡峭，不磨蹭。要的就是这个封板的气势和力度。</p><h2 id="h2-9">妖股补涨法</h2><p><strong>思路：当市场较差，或者板块连续调整逐渐横盘后，有个股先于指数、先于板块指数企稳，并且涨幅很大，翻倍，甚至几倍的时候，那么这个板块就会有补涨股</strong>。特别是当这个板块个股股性好，板块经常出涨停股时，游资非常可能会选择做连板股、妖股来做机构股的补涨。小票会以更暴力的方式补涨趋势股。趋势走了一倍，7个连板也是一倍。</p><p>注意事项：板块股性好，科技、政策属性，游资认可，容易出连板妖股、翻倍妖股；如果板块股性差，那么出2-3板的个股会容易些。</p><p>科技板块的常见炒作路径：最开始炒概念，后来炒商用，炒落地，最后留下真正有业绩的个股持续上涨。一只机构股翻倍了，背后一定有自身逻辑在，一种可能是个股拐点，或者业务变更，另一种就是行业的拐点。</p><p><strong>烂板次日连板转强可以理解为超预期！！！可以试错。</strong></p><h1 id="h1-4">支撑位大全</h1><h2 id="h2-10">理论</h2><h3 id="h3-5">前提</h3><ol><li>支撑位会跌破，跌破注意止损</li><li>很难有标准的支撑回踩：强势市场在支撑上方就继续涨；弱势市场往往跌破在支撑位附近反复震荡，测试支撑位有效性。</li><li>支撑位和压力位是相互转化的。</li><li>支撑位的重叠越高越好，不同时间的支撑位叠加起来更有效。</li><li>短期内，支撑位和压力位都是第一次最有效：<strong>支撑位=一扇锁着的门</strong>，第一次最牢，反复开关锁次数多了就容易一推就开；<strong>压力位=一堵堵着的墙</strong>，第一次撞墙最结实，撞的多了就松了。<strong>这也是多次突破关键价位的买点逻辑，多次突破，比第一次更容易成功。</strong></li><li><strong>放量</strong>突破或者跌破支撑位更有效。</li><li><strong>个股越大越有地位，和市场强关联，则各种方法找到的支压力位就越管用</strong>，因为参与者多，统计规律越明显。越是庄股，成交金额越小，随机性越强。</li></ol><h3 id="h3-6">有效突破和跌破的确认</h3><p><strong>通过跌破突破后的涨幅和时间来确认：</strong></p><p>以趋势交易为例，突破后，继续上涨3-5个点，2-3个交易日不跌破，为有效突破并转为支撑；跌破后2-3个交易日不收回为有效跌破。</p><h3 id="h3-7">如何应用支撑</h3><p>支撑位附近低吸，后面止跌反馈好，形成二次放量或者反拉到均线上根据风偏加仓。如果低吸了后跌破了支撑位，说明最初判断不对，择机减仓止损。</p><h3 id="h3-8">假突破和假跌破</h3><p><strong>价格快速跌破一个公认的强支撑吸引空头入场或者触发多头止损，但随后价格迅速反转拉回支撑之上</strong>，这通常意味着<strong>主力在洗盘，随后往往有大涨</strong>。这种跌破被称为“毛刺”或“空头陷阱”。</p><p>遇到这种现象，一个就是用时间来验证支撑有效性，是否快速收回，比如跌破多久不收回就按照真跌破来处理。</p><p><strong>短线，看15-30分钟，日线看2-3天</strong>等，按照一致性处理。跌破时不论真假，都按照真的处理。</p><h2 id="h2-11">支撑位分类</h2><h3 id="h3-9">水平支撑位</h3><p>价格在历史上多次触及但是未能跌破的特定水平价位。</p><p>原理：价格跌到这个位置时，买家积极进场（卖家惜售），形成强大买盘力量。</p><h3 id="h3-10">趋势线支撑</h3><p>上升趋势中，连接一系列逐步抬高的低点，形成一根向上倾斜的直线。</p><p>原理：只要价格维持在趋势线上方，上升趋势就认为是健康的。</p><p><strong>关键点：连接至少两个低点才能画线，第三个点触碰该直线并反弹则确认其有效性。</strong></p><p><img src="images/img-015.png" loading="lazy" alt="图15" decoding="async"></p><p><img src="images/img-016.png" loading="lazy" alt="图16" decoding="async"></p><h3 id="h3-11">移动平均线支撑</h3><p>短期：5日，10日；</p><p>中期：20，30，60（季线），120（半年线）</p><p>长期：250（年线）</p><p>案例：</p><ol><li>盛新锂能，锂电池分支龙头，突破新高后，第一次回踩；</li></ol><p><img src="images/img-017.png" loading="lazy" alt="图17" decoding="async"></p><ol><li>半导体设备etf10日线附近低吸；</li></ol><p><img src="images/img-018.png" loading="lazy" alt="图18" decoding="async"></p><ol><li>北方华创，调整至中期均线60日线，迎来反弹</li></ol><p><img src="images/img-019.png" loading="lazy" alt="图19" decoding="async"></p><ol><li>阳光电源突破年线后，一波上涨后，多次回踩年线后展开反弹。</li></ol><p><img src="images/img-020.png" loading="lazy" alt="图20" decoding="async"></p><h3 id="h3-12">标志性K线</h3><p>标志性K线的要求和特点：</p><ul><li>成交量明显放大：有<strong>增量资金入场</strong>；波动较大，发生重要价格变化（<strong>5%以上或者涨停或者重要的下影线</strong>）；<strong>突破了前期箱体、趋势线或者重要均线。</strong></li></ul><p>以大阳线为例：</p><ul><li>收盘价支撑：第二天价格回调，但始终在昨天大阳线的收盘价上方运行，这是极强的表现，通常意味着日内调整结束，<strong>可以选择机会低吸</strong></li><li>开盘价支撑：如果主力要做多，通常不会让价格跌破开盘价，因为那意味着翻天买入的人都处于被套状态。</li><li>均价支撑：分时均价，指市场当天所有参与者平均持仓成本。只要在这个价格之上，意味着大多数人都是盈利的，市场情绪稳定；一旦跌破，意味着平均持仓的人开始亏钱，抛压可能涌出。</li></ul><p>实战意义：<strong>两种均价线最重要</strong></p><ul><li><strong>昨日的均价线</strong></li><li><strong>最近放量k线的均价线</strong></li></ul><p>（以正丹为例，5月15日是辨识度关键日期的20cm涨停大阳线当天的均价线最后收在24.31，16日17日没有回踩15日那天的均价线，20日的这天就是第一次回踩关键大阳K那天的均价线同时满足：</p><ol><li>大阳k的均价线支撑有效</li><li>第一次回踩（短线第一次回踩有效)</li></ol><p>21日反弹13.82%，波段上涨30多个点。</p><p><img src="images/img-021.png" loading="lazy" alt="图21" decoding="async"></p><ul><li>下影线支撑：原理 本来就是当天价格曾经跌下去，但被强大的买盘拉了回来，这个下影线的低点就是当天多头反击的开始。可以理解为主力的防守底线，一般主力不会轻易允许价格跌破这个位置，否则可能打击市场信心，引发抛压。</li></ul><p><img src="images/img-022.png" loading="lazy" alt="图22" decoding="async"></p><p><strong>实战特殊用法：如果后续几天价格连续缩量回调，正好打在下影线区域（不破低点），通常是极佳的买点。</strong></p><ul><li>形态支撑：</li><li>头肩底：颈线突破后，回踩颈线时颈线形成支撑。</li></ul><p><img src="images/img-023.png" loading="lazy" alt="图23" decoding="async"></p><ul><li>W底：上方两个高点捅破后回调不破形成水平支撑，下方两个低点不破形成水平支撑，买点类似于双肩。</li></ul><p><img src="images/img-024.png" loading="lazy" alt="图24" decoding="async"></p><ul><li>缺口支撑：如果价格跳空上涨（有缺口），之后回落至缺口上沿或缺口中间区域时，通常会获得支撑，<strong>因为缺口代表强烈的买盘意愿。</strong></li></ul><p>注意：跳空缺口的上下沿都有可能是支撑位或者压力位，越靠近边缘力度越强。</p><h1 id="h1-5">20cm套利</h1><h2 id="h2-12">盯盘</h2><p><strong>日内最强板块的打板或者半路</strong>：找最强板块的20cm首板或者二板打板。最重要的是指数强，板块强套利，成功率取决于指数和板块强度；</p><p>板块大涨次日是分化预期，但是在指数强的情况下板块可能次日继续走强从而套利股可能也会走强，如果指数弱就要记住次日套利股冲高跑路。</p><p>次日板块分化表现：板块分时冲高回落或者无法创新高震荡或者直接走弱，此时是卖点。</p><h2 id="h2-13">前提</h2><p>爆发板块足够强！板块明显放量！！各股是前一天最强的20cm！！！</p><p>爆发次日，大部分时候板块分化即个股冲高回落（只有少数个股可以走出分歧二板），再次日可能有反包或者直接走弱，<strong>找爆发日最强的个股进行分时分批低吸博弈次日反包</strong>。（可以观察该个股分歧日是直接下杀还是小幅回落并有承接，<strong>后者低吸更好</strong>​​）</p><h2 id="h2-14">20cm分歧二板</h2><p>板块爆发<strong>次日分歧，个股还能二板封死，再次日有回流和修复预期</strong>，容易低开高走快速拉升。</p><p>还有可能二板炸板，但是如果有承接（在分时均线上方），次日可能也有回流拉升。</p><h1 id="h1-6">二次分时放量买点</h1><h2 id="h2-15">定义</h2><ul><li>二次放量：股价盘中出现两次放量，<strong>第一次早盘的试探或者洗盘，第二次再次放量说明有新资金进场</strong>。<strong>最好是二次放量时的柱状图面积和大于第一次时候的面积和</strong>。有时候一分钟的量能大但是阶段的面积小。</li><li>新高：指第<strong>二次放量后，分时股价能够日内新高，涨幅和速度通常超过第一次</strong>，可能是真的启动。</li><li>半路：针对于<strong>水下急跌低吸，和高位涨停打板</strong>买入，半路买点处于拉升途中。</li><li>买点：<strong>二次放量瞬时介入或者二次放量后再次回落回踩均线附近、放量的价位附近买入。</strong></li><li>买点逻辑：早盘的放量靠化一些获利盘兑现，兑现较凶，第二次再次介入抛压相对较小，介入时成功率高。</li></ul><h2 id="h2-16">如何提高成功率</h2><ul><li>择时：小周期反弹第一二天，情绪好更容易成功。</li><li>方向：热点板块，根据板块节奏，买板块由弱转强的那几个阶段，个股更容易获得加成。</li><li>形态和股性：k线形态，股性上历史上有过连板股辨识度更好</li></ul><h2 id="h2-17">如何提高日内大涨概率</h2><h3 id="h3-13">容易大涨的位置和形态</h3><ol><li>平台突破：股价在相对低位长期缩量整理形成的平台，二次放量当天的目的是突破这个平台。</li><li>关键阻力位突破：面临<strong>前期高点、重要均线（如年线）、均线粘合处、跳空缺口等压力</strong>，二次放量是带量突破的确认信号。</li><li>阳包阴，多方炮形态：第一天放量上涨，第二天回调洗盘，第三天（当天）再次放量上涨，形成<strong>两阳夹一阴走势</strong>。</li><li>N字形态、N字板：尤其是<strong>和龙头股同期涨停过的个股做补涨</strong>。前一天或者前几天有过涨停，随后1-几天缩量回调至关键支撑位（如五日线），当天二次放量启动。</li></ol><p><img src="images/img-025.png" loading="lazy" alt="图25" decoding="async"></p><ol><li><strong>均线多头排列，k线走加速趋势，连续小阳大阳线</strong>。</li></ol><p><img src="images/img-026.png" loading="lazy" alt="图26" decoding="async"></p><ol><li>均线多头排列，k线回踩企稳：<strong>止跌十字星+第一根阳线止跌（+第二根放量阳线涨停）</strong></li></ol><p><img src="images/img-027.png" loading="lazy" alt="图27" decoding="async"></p><h2 id="h2-18">总结</h2><p><strong>高概率半路买点 = 大盘环境+板块+个股辨识度+形态+分时。</strong></p><p>任何理念和技巧，讲了是一回事。</p><p>大家有没有看是一层。</p><p>有没有认真看、认真理解是一层。</p><p>理解后有没有动手去实践，有没有自己去总结，是另一层。</p><p>熟不熟练，又是一层。</p><p>看了，懂了，做了，做好，熟练的得做好，这一步都是一个新的境界。</p><p>所以很多时候，为什么有人赚钱，有人亏钱。</p><p>其实也就在这一次次的差别上。</p><h1 id="h1-7">三大卖点</h1><p><strong>重要原则：位置越高，仓位越重，买点越敏感！！！！！！！！</strong></p><h2 id="h2-19">第一类：围绕五日线</h2><p>不及预期，不能沿着五日线快速拉升。</p><ol><li>分时冲高回落，跌破分时均价</li></ol><p><img src="images/img-028.png" loading="lazy" alt="图28" decoding="async"></p><ol><li>日线距离5日线较远，分时震荡后，持续下跌。</li></ol><p><img src="images/img-029.png" loading="lazy" alt="图29" decoding="async"></p><ol><li>震荡后跌破五日线。分时高开低走，第一波向下，没能快速止跌。</li><li>个股高开低走，反弹站不上均线。</li></ol><p><img src="images/img-030.png" loading="lazy" alt="图30" decoding="async"></p><ol><li>日线良好，突发利空。</li></ol><p><img src="images/img-031.png" loading="lazy" alt="图31" decoding="async"></p><ol><li>买入后快速获利，波动小。</li></ol><p><img src="images/img-032.png" loading="lazy" alt="图32" decoding="async"></p><h2 id="h2-20">第二类：围绕箱体下沿</h2><p><strong>放量跌破，注意风险！要大跌！</strong></p><p>如果第一卖点没有卖，可以转为找第二卖点， 但前提一定是轻仓的，<strong>如果是重仓，第一类卖点错过，如果等到第二类卖点再卖，亏损也会较大</strong>。所以重仓即使错过了第一类卖点，尽量也要考虑减仓。</p><h2 id="h2-21">第三类：反弹站不上箱体下沿或碰一下又跌</h2><p><strong>这是二次确认要跌，逃命卖点</strong></p><h2 id="h2-22">小白补充必看！</h2><p>在箱体下沿低吸的票，股价可能会在这个位置晃悠一阵，接受这种小波动，别一跌就慌，卖点看“箱体反弹没按预期涨” 就行；任何方法都有“骗线”（股价故意走假形态骗你买卖），可以看收盘价格或次日开盘30 分钟价格判断，不用纠结，总要接受偶尔被骗；做不到“卖点果断”，就别买波动大的票，或者少买点（低仓位），别硬扛。</p><h1 id="h1-8">一字板回流</h1><p>主要矛盾：不是技术形态上，而是强势板块，分歧活口博弈回流</p><p>强势板块，保证不会一日游；分歧活口，通过板块的分歧，个股的强势，来识别个股的辨识度。</p><p>至于这个活口，是一字板，还是t字板，还是换手板，还是趋势股，上影线，其实都只是形态。核心的逻辑是：强势板块没有结束，技术形态识别个股辨识度的一种方法。还有啊，基本面核心，趋势股等等，其实逻辑都是一样的。具体的技术形态，比如一个板，两个板，t字板，t字板次日的分时，不是逻辑，而是自爱逻辑下尽量找更理想的介入点。比如一个一字板，比两个一字板更容易涨停。比如开板当天分歧的力度很大，次日可能会有惯性下杀，那么可能会有更低的买点。再比如，如果板块比较强，分歧次日，可能高开秒板，没有下杀的过程。</p><p>核心的逻辑就是板块强势，不会直接结束，越强的板块，分歧的越早，越容易回流，性价比越高。大爆发，分歧早，说明还有分歧，更容易在分歧中上涨。</p><p>两个一字，可能会透支空间了。但只要不是连续一字板到顶，还是有机会，但要注意分时承接。</p><p>阅读大港和国光股票的文章</p><p>还讲过龙头平开的低吸模式：就是说一个板块，如果当天大涨，第二天龙头股平开，也可以直接买。逻辑就是大涨次日，会有惯性，平开就是一种分歧，后面会有拉升。</p><h1 id="h1-9">龙回头</h1><p>龙回头指的是龙头妖股的后期买点。存在两种龙回头：</p><ul><li>上升阶段只调整一两根大阴线至十日线附近或者高位横盘调整至十日线附近就开始反抽或者二波；</li><li>波段后回调好多天后的二波或者小周期波段。</li></ul><h2 id="h2-23">第一种</h2><p>大部分都走不出二波，走出的概率很低，向上空间很小，向下空间巨大，盈亏比很低，尤其是第一波涨幅已经很大的纯投机票。<strong>真正能走二波的龙头，一般在第二波首板也是主动领涨，或者先于市场反弹，先止跌先新高</strong>。</p><h2 id="h2-24">第二种</h2><p><strong>四个条件缺一不稳！</strong></p><p>龙头妖股在一波波段之后，开始出现连续阴线回调，做超跌。一般是距离最高点<strong>下跌30%多后，rsi低于30，重新站上10日线，</strong>macd中出现或者将要出现时博弈<strong>金叉，且短线靠近0轴</strong>（金叉可能出现在很多地方，<strong>但是0轴附近的金叉很有含金量</strong>），<strong>0轴上或者0轴下的金叉一般都不要关注</strong></p><h1 id="h1-10">买卖点依据</h1><h2 id="h2-25">卖点依据</h2><p>一个就是按照技术面卖，一个就是按照板块周期卖。</p><ul><li>按技术卖：<strong>出现明显的走弱信号，止盈止损；或者缩量拉升，分批卖出。</strong></li><li>按周期卖：第一天爆发<strong>，第二天分歧，我会做t或者持有等回流看强弱再卖，</strong>好处是不太会卖飞，坏处是可能过山车。</li></ul><h2 id="h2-26">买点依据</h2><p><strong>指数阳线，做高度股低吸或者打板</strong>。</p><p><strong>如果是主流龙头，打板确定性会更高。分支龙头，低吸会更好一点</strong>。因为资金早盘会做主流板块，很多资金踏空了，才会去选择分支龙头。</p><p>主要是看板块指数，如果板块一直小涨，还没有大涨过，板块内出现的首板就可以关注一下，等出现二板就可以做。<strong>高度股最好在板块爆发日前入手</strong>，爆发日入手有可能次日板块分歧导致不及预期。</p><h1 id="h1-11">强为弱之纲</h1><h2 id="h2-27">原理</h2><p>一种比价效应，龙头的强势上涨会带动板块上涨，资本逐利，哪里有钱赚就去哪里。</p><p>跟风和补涨的区别：跟风是龙头主升过程中跟随龙头上涨；补涨是龙头逐渐走弱，开始震荡后，补涨股能够你板块、逆龙头上涨。</p><h2 id="h2-28">介入方式</h2><ul><li><strong>盘中做跟风，赌盘中涨停</strong>。盘中龙头快速上涨，做跟风尽量不要超过5个点，考虑到盈亏比。<strong>做跟风尽量不要做中位股</strong>，比如龙头3板，去做2板的就不太好。<strong>如果去打板跟风股涨停，只做板块内当天第一个首板涨停最稳妥</strong>；<strong>日内跟风，一般都要在拉升后的调整之后做低吸</strong>，均线附近，博弈日内涨停，如果冲板失败，第二天可以保本走。</li><li><strong>尾盘做跟风，赌次日拉升。</strong>尽量不要买当天中阳线，<strong>最好买小阳、小阴</strong>。中阳线代表个股的弹性和波动已经放大，这种性价比会降低，如果向下，调整也会大于小阳、小阴的个股。（买低弹性，博弈弹性放大的超额收益）</li><li><strong>趋势线结构。小阳线拉升，没有明显加速过，接近新高位置，很容易出现大阳线加速走势。</strong></li></ul><p>案例1：</p><p><img src="images/img-033.png" loading="lazy" alt="图33" decoding="async"></p><p><strong>圈友亏钱的个股。9月5日分歧日没买，9月6日龙头加速了，去买中位股</strong>。龙头没买到，去买中位股。龙头才3板，买2板的预期在哪里。所以这个不应该买。中位股弹性大，上面有龙头，性价比又低，容易亏钱。买弹性小的，即使不涨，也比中位股回落亏钱强。<strong>坚决不要不高不低。</strong></p><p>案例2：</p><p><img src="images/img-034.png" loading="lazy" alt="图34" decoding="async"></p><p>消费电子大分歧，有回流预期，没有走弱，龙头国光也在换手。在龙头分歧的时候，盘中买肯定就不好了，不如尾盘买。因为盘中买，容易遇到回落，但是尾盘买，可以回避回落，成本降低。</p><p>漫步者N字形态。风股止盈次日消费电子回流，漫步者是率先上板的首板个股，多拿一会，次日分歧，跟风股止盈</p><p><img src="images/img-035.png" loading="lazy" alt="图35" decoding="async"></p><h2 id="h2-29">总结</h2><p>选跟风就是股性和性价比，不要买高，买高不如做龙头。</p><h1 id="h1-12">筹码错位</h1><h2 id="h2-30">原理</h2><ol><li>人气股高位涨停被闷杀，大量套牢现金。高位缩量跌停前的最后一根k线，最好是涨停，或者是大阳线，不能是阴线，阴线说明有换手有获利资金兑现。</li><li>连续跌停，一般是两个跌停，第一个跌停不放量，在第二个跌停打开的时候高位被套牢的筹码在低位跌停打开时进行筹码换手，形成错位。</li><li>跌停打开时，瞬间放大量，量越大越好。量越大说明上方的套牢盘止损越多，那么在盘中的拉升过程中抛压就越小。</li></ol><p><strong>撬跌停板的模式</strong></p><h1 id="h1-13">套利买点之大涨日低吸人气股</h1><h2 id="h2-31">原理逻辑</h2><p>做轮动预期，在牛市和震荡市比较好用，利用情绪的轮动规律。</p><p>借指数的东风，去找相对低位的洼地板块进行套利。指数和主流板块的强度保证成功率</p><h2 id="h2-32">条件</h2><ol><li>大涨日：大盘大涨日各板块基本都会水涨船高。</li><li>人气股：非主流板块额龙头，前期活跃的人气股。</li></ol><p>大涨日往往最强板块的龙头早就涨停，追最强板块的后排如果没选到股性好的会遇到冲高回落的情况，小白经常吃这个亏。资金就像水，会找最近活跃度较高的，强度逻辑不错的，前期人气股。具有较高的群众基础，一点火立马就会有人来追涨。</p><h2 id="h2-33">步骤</h2><ol><li>识别大涨日</li></ol><p>一般出现在冰点后1-2个交易日，或者上一个小周期后的2-3天，关键是涨跌家数和指数量能，涨幅</p><ol><li>寻找次强板块，前期活跃板块，妖股</li><li>次强指当日涨幅排名前五，宽一点可以到前10，板块内有涨停，板块处于上升趋势或者前高附近是加分项；</li><li>前期活跃指的是最近某天市场的最强板块，时间越近越好，当下最强的或者曾经最强的，尝试过成为龙头的股票，市值大成交额大的中军个股才是目标；</li><li>前一个月左右大涨的人气妖股，调整充分了到5/10日线，调整了20-30个点，形成止跌信号，下影线，多方炮等见底组合。</li><li>买入时机</li></ol><p>一般确认了大涨当天的10.30或者14.30，指数没有回落风险。次日也可以做，但是丧失先手权。</p><p>一般选择回调的低点，分时均线附近低吸。好的指数强度或者高涨的情绪，打板也可以。</p><ol><li>卖出和止损</li><li>卖出：一般持股1-2天，理想的是，当日尾盘拉升，次日冲高跑路；当日没涨，次日大涨，涨不动了回落分时均线跑路。</li><li>止损：-5、-8左右严格止损；买入后1-3个交易日没起色就跑。</li></ol><h2 id="h2-34">优缺点、难点</h2><ol><li>优点：可以尾盘或盘中交易，不需要追涨和打板的盯盘，确认指数强势后操作，避免了冲高回落的风险</li><li>缺点：板块多的时候，确定性下降，成功率下降，不如打板、追涨最强板块确定性高</li><li>难点：熟悉轮动板块，熟悉人气股</li></ol></article>
+</main>
+<script>
+var annos=[],pendingRange=null,STORAGE_KEY="jiege_kanpan_annos";
+var formatClip=null,brushOn=false;
+var editMode=false,editFormatClip=null,editBrushOn=false,originalContent="";
+
+/* === 面板 === */
+function openPanel(n){closePanels();document.getElementById(n==="toc"?"panelToc":"panelAnno").classList.add("open");document.getElementById("mask").classList.add("show");if(n==="anno")renderAnnoList();}
+function closePanels(){document.querySelectorAll(".panel").forEach(function(p){p.classList.remove("open");});document.getElementById("mask").classList.remove("show");}
+document.querySelectorAll(".toc-link").forEach(function(a){a.addEventListener("click",function(){setTimeout(closePanels,250);});});
+
+/* === 目录折叠（默认折叠，scroll-spy 自动展开当前） === */
+function toggleTocItem(el){var c=el.parentElement.nextElementSibling;if(c&&c.classList.contains("toc-children")){c.classList.toggle("collapsed");el.innerHTML=c.classList.contains("collapsed")?"&#9654;":"&#9660;";}}
+function setupScrollSpy(){
+ var heads=document.querySelectorAll(".content h1[id],.content h2[id],.content h3[id]");
+ if(!("IntersectionObserver" in window))return;
+ var nodes=document.querySelectorAll(".toc-node[data-target]"),map={};
+ nodes.forEach(function(n){map[n.getAttribute("data-target")]=n.querySelector(".toc-link");});
+ var obs=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){var id=e.target.id;nodes.forEach(function(n){var l=n.querySelector(".toc-link");if(l)l.classList.remove("active");});if(map[id]){map[id].classList.add("active");var p=map[id].closest(".toc-children");if(p&&p.classList.contains("collapsed")){p.classList.remove("collapsed");var t=p.previousElementSibling.querySelector(".toc-toggle");if(t)t.innerHTML="&#9660;";}}}});},{rootMargin:"-80px 0px -70% 0px"});
+ heads.forEach(function(h){obs.observe(h);});
+}
+
+/* === 搜索 === */
+var searchMarks=[],curMatch=-1;
+function toggleSearch(){var b=document.getElementById("searchBar");b.classList.toggle("open");if(b.classList.contains("open")){setTimeout(function(){document.getElementById("searchInput").focus();},100);}else{clearSearch();}}
+function clearSearch(){document.getElementById("searchInput").value="";searchMarks.forEach(function(m){var p=m.parentNode;p.replaceChild(document.createTextNode(m.textContent),m);p.normalize();});searchMarks=[];curMatch=-1;document.getElementById("searchCount").textContent="0/0";hideSearchDropdown();}
+function hideSearchDropdown(){document.getElementById("searchDropdown").classList.remove("show");}
+function showSearchDropdown(items){var dd=document.getElementById("searchDropdown");if(!items||!items.length){dd.classList.remove("show");return;}var h="";items.forEach(function(it,idx){h+='<div class="search-dropdown-item" onclick="jumpToSearchItem('+idx+')">'+escapeHtml(it.text.slice(0,60)+(it.text.length>60?"...":""))+'</div>';});dd.innerHTML=h;dd.classList.add("show");}
+function jumpToSearchItem(idx){curMatch=idx;scrollToMatch(idx);updateSearchCount();}
+function doSearch(kw){
+ clearSearch();
+ hideSearchDropdown();
+ if(!kw||kw.length<1){document.getElementById("searchCount").textContent="0/0";return;}
+ var content=document.getElementById("content");
+ var walker=document.createTreeWalker(content,NodeFilter.SHOW_TEXT,null);
+ var node,matches=[];
+ while(node=walker.nextNode()){
+  if(!node.nodeValue||!node.nodeValue.trim())continue;
+  if(node.parentNode&&(node.parentNode.className==="anno-ref"))continue;
+  var t=node.nodeValue.toLowerCase(),p=t.indexOf(kw.toLowerCase()),idx=0;
+  while(p!==-1){matches.push({node:node,start:p,end:p+kw.length,text:node.nodeValue});p=t.indexOf(kw.toLowerCase(),p+kw.length);}
+ }
+ /* 从后往前高亮，避免偏移错乱 */
+ matches.reverse().forEach(function(m){
+  try{var r=document.createRange();r.setStart(m.node,m.start);r.setEnd(m.node,m.end);var mk=document.createElement("mark");mk.className="search-mark";r.surroundContents(mk);searchMarks.push(mk);}catch(e){}
+ });
+ searchMarks.reverse();
+ curMatch=searchMarks.length>0?0:-1;
+ updateSearchCount();
+ if(curMatch>=0)scrollToMatch(0);
+ /* 显示下拉框 */
+ if(matches.length>0){var dropdownItems=[];matches.reverse().forEach(function(m){dropdownItems.push({text:m.text});});showSearchDropdown(dropdownItems);}
+}
+function updateSearchCount(){document.getElementById("searchCount").textContent=(curMatch+1)+"/"+searchMarks.length;}
+function navMatch(d){if(!searchMarks.length)return;searchMarks[curMatch].classList.remove("current");curMatch=(curMatch+d+searchMarks.length)%searchMarks.length;scrollToMatch(curMatch);updateSearchCount();}
+function scrollToMatch(i){var m=searchMarks[i];m.classList.add("current");m.scrollIntoView({behavior:"smooth",block:"center"});}
+
+/* === 编辑模式 === */
+function toggleEditMode(){
+ var content=document.getElementById("content"),btn=document.getElementById("editBtn"),tb=document.getElementById("editToolbar");
+ if(!editMode){
+  editMode=true;btn.classList.add("active");btn.textContent="退出";
+  originalContent=content.innerHTML;
+  content.classList.add("editing");
+  makeContentEditable(content,true);
+  tb.classList.add("show");
+  alert("进入编辑模式：点击段落即可编辑，长按选中文本可用格式刷复制格式");
+ }else{
+  editMode=false;btn.classList.remove("active");btn.textContent="编辑";
+  content.classList.remove("editing");
+  makeContentEditable(content,false);
+  tb.classList.remove("show");
+ }
+}
+function makeContentEditable(root,enable){
+ root.querySelectorAll("p,h1,h2,h3,li").forEach(function(el){el.contentEditable=enable;});
+}
+function editCmd(cmd){document.execCommand(cmd,false,null);}
+function editColor(c){document.execCommand("foreColor",false,c);}
+function toggleEditFormatBrush(){
+ var sel=window.getSelection();
+ if(!editBrushOn){
+  if(sel.isCollapsed){alert("请先选中要复制格式的文字");return;}
+  editFormatClip={bold:document.queryCommandState("bold"),italic:document.queryCommandState("italic"),underline:document.queryCommandState("underline"),strike:document.queryCommandState("strikeThrough"),color:document.queryCommandValue("foreColor")};
+  editBrushOn=true;document.getElementById("editBrushBtn").classList.add("active");
+  alert("格式已复制！现在选中要应用格式的文字，再点格式刷");
+ }else{
+  if(sel.isCollapsed){alert("请先选中要应用格式的文字");return;}
+  if(editFormatClip.bold)document.execCommand("bold");
+  if(editFormatClip.italic)document.execCommand("italic");
+  if(editFormatClip.underline)document.execCommand("underline");
+  if(editFormatClip.strike)document.execCommand("strikeThrough");
+  if(editFormatClip.color&&editFormatClip.color!=="rgb(0, 0, 0)")document.execCommand("foreColor",false,editFormatClip.color);
+  editBrushOn=false;document.getElementById("editBrushBtn").classList.remove("active");
+ }
+}
+function saveEdit(){
+ var content=document.getElementById("content");
+ try{localStorage.setItem("jiege_kanpan_content",content.innerHTML);alert("已保存到本地存储");}catch(e){alert("保存失败：存储空间可能已满");}
+}
+function cancelEdit(){
+ if(!confirm("取消编辑？未保存的更改将丢失。"))return;
+ var content=document.getElementById("content");
+ content.innerHTML=originalContent;
+ toggleEditMode();
+}
+/* 长按选中格式刷支持 */
+var longPressTimer=null;
+document.addEventListener("mousedown",function(e){
+ if(!editMode)return;
+ var target=e.target;
+ if(target.closest(".content")&&(target.tagName==="P"||target.tagName==="LI"||/^H[1-6]$/.test(target.tagName))){
+  longPressTimer=setTimeout(function(){
+   var sel=window.getSelection();
+   if(!sel.isCollapsed){
+    editFormatClip={bold:document.queryCommandState("bold"),italic:document.queryCommandState("italic"),underline:document.queryCommandState("underline"),strike:document.queryCommandState("strikeThrough"),color:document.queryCommandValue("foreColor")};
+    editBrushOn=true;document.getElementById("editBrushBtn").classList.add("active");
+   }
+  },800);
+ }
+});
+document.addEventListener("mouseup",function(e){if(editMode&&longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}});
+document.addEventListener("click",function(e){if(!editMode)return;var target=e.target;if(target.closest(".content")&&(target.tagName==="P"||target.tagName==="LI"||/^H[1-6]$/.test(target.tagName))){if(editBrushOn){var sel=window.getSelection();if(!sel.isCollapsed){if(editFormatClip.bold)document.execCommand("bold");if(editFormatClip.italic)document.execCommand("italic");if(editFormatClip.underline)document.execCommand("underline");if(editFormatClip.strike)document.execCommand("strikeThrough");if(editFormatClip.color&&editFormatClip.color!=="rgb(0, 0, 0)")document.execCommand("foreColor",false,editFormatClip.color);editBrushOn=false;document.getElementById("editBrushBtn").classList.remove("active");}}}});
+
+/* === 批注：选中正文文字 === */
+var savedAnnoRange=null;
+function getSelInContent(){var sel=window.getSelection();if(!sel||sel.isCollapsed||sel.rangeCount===0)return null;var t=sel.toString().trim();if(t.length<2)return null;var n=sel.anchorNode;if(!n||!document.getElementById("content").contains(n))return null;return{sel:sel,range:sel.getRangeAt(0).cloneRange(),text:t};}
+function showToolbar(x,y,r){savedAnnoRange=r;var tb=document.getElementById("annoToolbar");tb.style.left=Math.min(x+8,window.innerWidth-90)+"px";tb.style.top=Math.max(y-40,8)+"px";tb.style.display="block";}
+function hideToolbar(){document.getElementById("annoToolbar").style.display="none";savedAnnoRange=null;}
+function hideEditor(){document.getElementById("annoEditor").style.display="none";resetEditor();}
+function hidePopup(){document.getElementById("annoPopup").style.display="none";}
+document.addEventListener("mouseup",function(e){hidePopup();setTimeout(function(){var r=getSelInContent();if(!r){hideToolbar();return;}showToolbar(e.clientX,e.clientY,r);},10);});
+document.addEventListener("touchend",function(e){hidePopup();var tx=e.changedTouches[0].clientX,ty=e.changedTouches[0].clientY;setTimeout(function(){var r=getSelInContent();if(!r){hideToolbar();return;}showToolbar(tx,ty,r);},100);});
+/* 兼容 iOS：selectionchange 事件备选 */
+document.addEventListener("selectionchange",function(){if(editMode)return;var sel=window.getSelection();if(sel&&!sel.isCollapsed&&sel.toString().trim().length>=2){var n=sel.anchorNode;if(n&&document.getElementById("content").contains(n)){var r=sel.getRangeAt(0).getBoundingClientRect();var selData=getSelInContent();if(selData)showToolbar(r.left+r.width/2,r.top,selData);}}});
+document.addEventListener("scroll",function(){hideToolbar();hidePopup();},{passive:true});
+
+/* === 批注编辑器 === */
+function openAnnoEditor(){
+ var r=savedAnnoRange||getSelInContent();if(!r){hideToolbar();return;}
+ pendingRange=r.range;savedAnnoRange=null;
+ var ed=document.getElementById("annoEditor"),tb=document.getElementById("annoToolbar");
+ var rect=tb.getBoundingClientRect();
+ ed.style.left=Math.min(rect.left,window.innerWidth-350)+"px";
+ ed.style.top=(rect.bottom+6)+"px";
+ ed.style.display="block";
+ hideToolbar();
+ setTimeout(function(){document.getElementById("edArea").focus();},100);
+}
+function cancelAnno(){hideEditor();pendingRange=null;}
+function resetEditor(){document.getElementById("edArea").innerHTML="";formatClip=null;brushOn=false;document.getElementById("brushBtn").classList.remove("active");}
+function edCmd(cmd){document.getElementById("edArea").focus();document.execCommand(cmd,false,null);}
+function edColor(c){document.getElementById("edArea").focus();document.execCommand("foreColor",false,c);}
+/* 格式刷：选中编辑器内文字→点格式刷存格式→选中目标文字→再点格式刷应用 */
+function toggleFormatBrush(){
+ var ed=document.getElementById("edArea");ed.focus();
+ var sel=window.getSelection();
+ if(!brushOn){
+  /* 复制格式 */
+  if(sel.isCollapsed||!ed.contains(sel.anchorNode)){alert("请先选中要复制格式的文字");return;}
+  formatClip={bold:document.queryCommandState("bold"),italic:document.queryCommandState("italic"),underline:document.queryCommandState("underline"),strike:document.queryCommandState("strikeThrough"),color:document.queryCommandValue("foreColor")};
+  brushOn=true;document.getElementById("brushBtn").classList.add("active");
+  alert("格式已复制！现在选中要应用格式的文字，再点格式刷");
+ }else{
+  /* 应用格式 */
+  if(sel.isCollapsed||!ed.contains(sel.anchorNode)){alert("请先选中要应用格式的文字");return;}
+  if(formatClip.bold)document.execCommand("bold");
+  if(formatClip.italic)document.execCommand("italic");
+  if(formatClip.underline)document.execCommand("underline");
+  if(formatClip.strike)document.execCommand("strikeThrough");
+  if(formatClip.color&&formatClip.color!=="rgb(0, 0, 0)")document.execCommand("foreColor",false,formatClip.color);
+  brushOn=false;document.getElementById("brushBtn").classList.remove("active");
+ }
+}
+/* 插入图片（压缩） */
+function insertImg(input){
+ var file=input.files[0];if(!file)return;
+ var reader=new FileReader();
+ reader.onload=function(e){
+  var img=new Image();
+  img.onload=function(){
+   var canvas=document.createElement("canvas"),maxW=800,w=img.width,h=img.height;
+   if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+   canvas.width=w;canvas.height=h;
+   canvas.getContext("2d").drawImage(img,0,0,w,h);
+   var dataUrl=canvas.toDataURL("image/jpeg",0.7);
+   document.getElementById("edArea").focus();
+   document.execCommand("insertImage",false,dataUrl);
+   input.value="";
+  };
+  img.src=e.target.result;
+ };
+ reader.readAsDataURL(file);
+}
+function confirmAnno(){
+ if(!pendingRange){hideEditor();return;}
+ var edArea=document.getElementById("edArea");
+ var noteHtml=edArea.innerHTML.trim();
+ var noteText=edArea.innerText.trim();
+ if(!noteText&&!noteHtml){alert("请输入批注内容或插入图片");return;}
+ var text=pendingRange.toString();
+ var start=getGlobalOffset(pendingRange);
+ var anno={id:"a"+Date.now(),start:start,len:text.length,text:text,noteHtml:noteHtml,noteText:noteText,time:formatTime(new Date())};
+ annos.push(anno);saveAnnos();highlightAnno(anno);renderAnnoList();
+ hideEditor();pendingRange=null;window.getSelection().removeAllRanges();
+}
+function formatTime(d){var p=function(n){return n<10?"0"+n:n;};return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());}
+function getGlobalOffset(range){var c=document.getElementById("content");var pre=document.createRange();pre.selectNodeContents(c);pre.setEnd(range.startContainer,range.startOffset);return pre.toString().length;}
+function findPosition(root,target,len){var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),off=0,sN=null,sO=0,eN=null,eO=0,n;while(n=w.nextNode()){var nl=n.nodeValue.length;if(!sN&&off+nl>target){sN=n;sO=target-off;}var et=target+len;if(off+nl>=et){eN=n;eO=et-off;break;}off+=nl;}if(sN&&eN)return{startNode:sN,startOffset:sO,endNode:eN,endOffset:eO};return null;}
+function highlightAnno(anno){
+ var c=document.getElementById("content");var pos=findPosition(c,anno.start,anno.len);if(!pos)return;
+ try{
+  var r=document.createRange();r.setStart(pos.startNode,pos.startOffset);r.setEnd(pos.endNode,pos.endOffset);
+  var span=document.createElement("span");span.className="annotated";span.setAttribute("data-anno-id",anno.id);span.title=anno.noteText.slice(0,50);
+  r.surroundContents(span);
+  var ref=document.createElement("sup");ref.className="anno-ref";ref.setAttribute("data-anno-id",anno.id);ref.textContent="\u270e";
+  span.parentNode.insertBefore(ref,span.nextSibling);
+  span.addEventListener("click",function(){showPopup(anno,span);});
+  ref.addEventListener("click",function(e){e.stopPropagation();showPopup(anno,ref);});
+ }catch(e){}
+}
+function showPopup(anno,el){
+ var pop=document.getElementById("annoPopup");
+ pop.innerHTML='<span class="ap-close" onclick="hidePopup()">&times;</span><div class="ap-text">\u201c'+escapeHtml(anno.text.slice(0,60)+(anno.text.length>60?"...":""))+'\u201d</div><div class="ap-note">'+anno.noteHtml+'</div><div class="ap-meta">'+anno.time+'</div>';
+ var rect=el.getBoundingClientRect();pop.style.display="block";
+ var pw=pop.offsetWidth,ph=pop.offsetHeight,l=rect.left;
+ if(l+pw>window.innerWidth)l=window.innerWidth-pw-10;
+ var t=rect.bottom+6;if(t+ph>window.innerHeight)t=rect.top-ph-6;
+ pop.style.left=Math.max(8,l)+"px";pop.style.top=Math.max(8,t)+"px";
+}
+function escapeHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function renderAnnoList(){
+ var list=document.getElementById("annoList"),badge=document.getElementById("annoBadge"),cnt=document.getElementById("annoCount");
+ badge.textContent=annos.length;cnt.textContent="("+annos.length+")";
+ if(!annos.length){list.innerHTML='<div class="anno-empty">还没有批注<br><br>选中正文内容即可添加批注<br>支持插入图片和格式刷</div>';return;}
+ var h="";annos.forEach(function(a){
+  var txt=a.noteText.slice(0,50)+(a.noteText.length>50?"...":"");
+  if(!txt&&a.noteHtml.indexOf("<img")!==-1)txt="[图片批注]";
+  var srcTxt=a.text.slice(0,40)+(a.text.length>40?"...":"");
+  h+='<div class="anno-list-item" onclick="jumpToAnno(\''+a.id+'\')"><span class="anno-del" onclick="event.stopPropagation();deleteAnno(\''+a.id+'\')">&#10005;</span><div class="anno-text">'+escapeHtml(srcTxt)+'</div><div class="anno-note">'+a.noteHtml+'</div><div class="anno-meta">'+a.time+'</div></div>';
+ });
+ list.innerHTML=h;
+}
+function jumpToAnno(id){var el=document.querySelector('.annotated[data-anno-id="'+id+'"]');if(el){closePanels();el.scrollIntoView({behavior:"smooth",block:"center"});setTimeout(function(){el.style.background="#ffd700";var a=annos.find(function(x){return x.id===id;});if(a)showPopup(a,el);setTimeout(function(){el.style.background="";},1000);},400);}}
+function deleteAnno(id){if(!confirm("删除这条批注？"))return;annos=annos.filter(function(a){return a.id!==id;});saveAnnos();location.reload();}
+function saveAnnos(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(annos));}catch(e){alert("保存失败：存储空间可能已满（图片过多），请删除部分旧批注");}}
+function loadAnnos(){try{annos=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");}catch(e){annos=[];}
+ /* 兼容旧格式：note 字段转 noteHtml */
+ annos.forEach(function(a){if(!a.noteHtml&&a.note){a.noteHtml=escapeHtml(a.note);a.noteText=a.note;}});
+ var sorted=annos.slice().sort(function(a,b){return b.start-a.start;});sorted.forEach(highlightAnno);renderAnnoList();}
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){closePanels();hideToolbar();hideEditor();hidePopup();var sb=document.getElementById("searchBar");if(sb.classList.contains("open")){sb.classList.remove("open");clearSearch();}}
+ if(e.key==="Enter"&&document.activeElement.id==="searchInput"){navMatch(e.shiftKey?-1:1);}});
+window.addEventListener("load",function(){setupScrollSpy();loadAnnos();loadEditContent();});
+function loadEditContent(){try{var saved=localStorage.getItem("jiege_kanpan_content");if(saved){var content=document.getElementById("content");content.innerHTML=saved;console.log("已恢复上次编辑内容");}}catch(e){}}
+</script>
+</body>
+</html>
